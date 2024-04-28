@@ -1,13 +1,12 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-from database import add_chat, delete_chat
+from database import add_chat, delete_chat, add_user_admin_to_chat_admins
 
 async def track_chat(update: Update, context: CallbackContext):
-    # Обработка добавления в группу
+    chat_id = update.message.chat_id
+    chat_name = update.message.chat.title
     for member in update.message.new_chat_members:
         if member.username == context.bot.username:
-            chat_id = update.message.chat_id
-            chat_name = update.message.chat.title
             user_id = update.message.from_user.id
             add_chat(chat_id, chat_name, False, [user_id])
             print(f"Добавлен в чат: {chat_name}, администратор: {user_id}")
@@ -15,7 +14,6 @@ async def track_chat(update: Update, context: CallbackContext):
     # Обработка удаления из группы
     if update.message.left_chat_member:
         if update.message.left_chat_member.username == context.bot.username:
-            chat_id = update.message.chat_id
             user_id = update.message.from_user.id
             delete_chat(chat_id)
             print(f"Удален из чата: {chat_id}")
@@ -34,6 +32,7 @@ async def start(update: Update, context: CallbackContext):
         '2. Я умею искать ответы на вопросы по чату, если мне их задать\n\n'
         'Чтобы редактировать чат, где ты являешься администратором, нажми на кнопку "Настроить чат"\n'
         'Чтобы найти ответ на свой вопрос, нажми на кнопку "Найти ответ на вопрос"\n'
-        'Чтобы привязать бот к чату для возможности настройки, нажми на кнопку "Привязать чат"',
+        'Чтобы привязать бот к чату для возможности настройки, нажми на кнопку "Привязать чат"\n\n'
+        'Важно добавить бота в администраторы канала, чтобы была возможность привязать его',
         reply_markup=reply_markup
     )

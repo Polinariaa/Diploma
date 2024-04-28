@@ -1,8 +1,6 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackContext, CallbackQueryHandler, MessageHandler, filters
-from database import get_chat, set_bot_active, get_user_admin_chats, get_admins_for_chat
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from bot_init import track_chat, start
-from bot_functions import handle_button
+from bot_functions import handle_button, handle_text
 
 def main():
     TOKEN = '6714836351:AAGqOkFIRdr68t3skyhS6_d2l6Zn8D9ZBEc'
@@ -13,6 +11,7 @@ def main():
     # Добавляем обработчик команды start
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_button))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, track_chat))
     application.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, track_chat))

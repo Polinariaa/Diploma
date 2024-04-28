@@ -4,7 +4,6 @@ import json
 
 # Эмуляция хранилища данных
 chats_data = {}  # Словарь для хранения данных о чатах и их администраторах
-(SELECTING_CHAT, SETTING_ADMINS) = range(2)
 
 async def track_chat(update: Update, context: CallbackContext):
     # Обработка добавления в группу
@@ -15,8 +14,8 @@ async def track_chat(update: Update, context: CallbackContext):
             user_id = update.message.from_user.id
             if user_id not in chats_data:
                 chats_data[user_id] = {}
-            chats_data[user_id][chat_id] = chat_name
-            print(f"Добавлен в чат: {chat_name}")
+            chats_data[user_id][chat_id] = {'name': chat_name, 'admins': [user_id], 'is_bot_active': False}
+            print(f"Добавлен в чат: {chat_name}, администратор: {user_id}")
 
     # Обработка удаления из группы
     if update.message.left_chat_member:
@@ -51,18 +50,50 @@ async def handle_button(update: Update, context: CallbackContext):
 
     user_id = query.from_user.id
     if query.data == 'bind_chat':
-        if user_id in chats_data and chats_data[user_id]:
+        # Фильтруем только те чаты, где пользователь является администратором
+        user_chats = chats_data.get(user_id, {})
+        admin_chats = {
+            chat_id: chat for chat_id, chat in user_chats.items()
+            if user_id in chat['admins'] and not chat['is_bot_active']
+        }
+
+        if admin_chats:
             keyboard = [
-                [InlineKeyboardButton(chat_name, callback_data=f"select_chat_{chat_id}")]
-                for chat_id, chat_name in chats_data[user_id].items()
+                [InlineKeyboardButton(chat['name'], callback_data=f"select_chat_{chat_id}")]
+                for chat_id, chat in admin_chats.items()
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="Отлично, мы нашли чаты, в которые вы добавили бота. Какой из них вы хотите привязать к боту?",
+                text="Отлично, мы нашли чаты, в которых вы являетесь администратором. Какой из них вы хотите привязать к боту?",
                 reply_markup=reply_markup
             )
         else:
-            await query.edit_message_text(text="К сожалению, не нашли чат, в который вы бы добавили бота. Добавьте бота и вернитесь к его привязке через основное меню.")
+            await query.edit_message_text(
+                text="К сожалению, не нашли чат, в который вы бы добавили бота или он бы ещё не был привязан. Добавьте бота и вернитесь к его привязке через основное меню."
+            )
+    elif "select_chat_" in query.data:
+        chat_id = int(query.data.split("_")[-1])
+        #print(f"Received chat_id: {chat_id}")  # Логируем полученный chat_id
+        #print(f"User ID: {user_id}")  # Логируем ID пользователя
+        #print(f"chats_data for user: {chats_data.get(user_id)}")  # Логируем данные о чатах текущего пользователя
+
+        if user_id in chats_data and chat_id in chats_data[user_id]:
+            if user_id in chats_data[user_id][chat_id]['admins']:
+                chats_data[user_id][chat_id]['is_bot_active'] = True
+                print(
+                    f"Chat {chats_data[user_id][chat_id]['name']} is now active.")  # Проверяем, что флаг установлен
+                await query.edit_message_text(
+                    text=f"Чат {chats_data[user_id][chat_id]['name']} успешно привязан. Бот активирован и готов к работе."
+                )
+            else:
+                print("User is not an admin for this chat.")  # Логируем, если пользователь не администратор
+                await query.edit_message_text(text="Вы не являетесь администратором этого чата.")
+        else:
+            print("Chat not found or user not found in chats_data.")  # Логируем, если чат не найден
+            await query.edit_message_text(
+                text="Не удалось найти чат в вашем списке или вы не являетесь его администратором.")
+    else:
+        await query.edit_message_text(text="Произошла ошибка. Попробуйте снова.")
 
 def main():
     TOKEN = '6714836351:AAGqOkFIRdr68t3skyhS6_d2l6Zn8D9ZBEc'

@@ -2,7 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from database import add_chat, delete_chat, save_message, get_admins_for_chat
 from datetime import datetime
-from suspicious_messages import is_suspicious
+from suspicious_messages import is_suspicious, forward_suspicious_message
 from bot_functions import add_admins, remove_admins
 from answers import handle_search_query
 
@@ -60,13 +60,7 @@ async def handle_text(update, context):
         save_message(chat_id, message_id, text, timestamp)
 
         if is_suspicious(text):
-            admins = get_admins_for_chat(chat_id)  # Получаем список администраторов для данного чата
-            for admin in admins:
-                try:
-                    context.bot.forward_message(chat_id=admin, from_chat_id=chat_id, message_id=message_id)
-                    context.bot.send_message(chat_id=admin, text=f"Подозрительное сообщение в чате {chat_name}")
-                except Exception as e:
-                    print(f"Не удалось переслать сообщение администратору {admin}: {str(e)}")
+            await forward_suspicious_message(context.bot, chat_id, message_id, chat_name, timestamp)
 
     else:
         action = context.user_data.get('action')

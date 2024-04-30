@@ -1,5 +1,4 @@
 import sqlite3
-import json
 
 # Подключение к базе данных (или её создание, если она не существует)
 conn = sqlite3.connect('bot_database.db')
@@ -25,6 +24,15 @@ CREATE TABLE IF NOT EXISTS chat_users_admins (
     user_id INTEGER,
     username TEXT,
     PRIMARY KEY (chat_id, user_id),
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
+);
+''')
+c.execute('''
+CREATE TABLE IF NOT EXISTS messages (
+    chat_id INTEGER,
+    message_id INTEGER PRIMARY KEY,
+    text TEXT,
+    timestamp DATETIME,
     FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
 );
 ''')
@@ -112,6 +120,22 @@ def add_user_admin_to_chat_admins(chat_id, user_id, username):
               (chat_id, user_id, username))
     conn.commit()
 
+def get_all_active_chats():
+    c.execute("SELECT * FROM chats WHERE is_bot_active = 1")
+    return [{'chat_id': row['chat_id'], 'name': row['name']} for row in c.fetchall()]
+
+def find_message_in_chat(chat_id, query):
+    c.execute('''
+            SELECT * FROM messages WHERE chat_id = ? AND text LIKE ?
+        ''', (chat_id, f"%{query}%"))
+    messages = c.fetchall()
+    return messages  # Возвращает список словарей, где каждый словарь представляет сообщение
+
+def save_message(chat_id, message_id, text, timestamp):
+    with conn:
+        conn.execute('''
+            INSERT INTO messages (chat_id, message_id, text, timestamp) VALUES (?, ?, ?, ?)
+        ''', (chat_id, message_id, text, timestamp))
 
 def print_all_chats():
     c.execute("SELECT * FROM chats")

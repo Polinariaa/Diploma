@@ -1,14 +1,18 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from database import get_chat, set_bot_active, get_user_admin_chats, get_admins_for_chat, add_chat_admin, \
-    get_user_admin_id_by_login, get_active_user_admin_chats, delete_chat_admin, is_user_admin_of_chat, add_user_admin_to_chat_admins, \
-    is_user_admin_member_of_chat
+    get_user_admin_id_by_login, get_active_user_admin_chats, delete_chat_admin, is_user_admin_of_chat, \
+    add_user_admin_to_chat_admins, is_user_admin_member_of_chat, get_all_active_chats
 from telegram import Bot
 
-
 async def handle_button(update: Update, context: CallbackContext):
+    print("Я в хендлере кнопок")
     query = update.callback_query
     await query.answer()
+
+    # Проверяем, является ли чат приватным
+    if query.message.chat.type != "private":
+        return  # Игнорируем запрос, если он не из личного чата
 
     user_id = query.from_user.id
     if query.data == 'bind_chat':
@@ -99,19 +103,36 @@ async def handle_button(update: Update, context: CallbackContext):
         await query.edit_message_text(
             text="Введите логин пользователя, которого хотите удалить из администраторов. Вы можете указать несколько логинов, разделив их пробелом."
         )
+    elif query.data == 'find_answer':
+        all_chats = get_all_active_chats()  # функция, возвращающая все активные чаты из базы
+        user_chats = []
+        for chat in all_chats:
+            if await is_user_member_of_chat(context.bot, chat['chat_id'], user_id):
+                user_chats.append(chat)
+
+        if user_chats:
+            keyboard = [
+                [InlineKeyboardButton(chat['name'], callback_data=f"answer_chat_{chat['chat_id']}")]
+                for chat in user_chats
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="Вот все чаты с ботом, в которых ты состоишь. Выбери, в каком именно чате ты хочешь найти ответ на свой вопрос",
+                reply_markup=reply_markup
+            )
+        else:
+            await query.edit_message_text(
+                text="Похоже, вы не состоите ни в одном чате с активированным ботом."
+            )
+    elif query.data.startswith('answer_chat_'):
+        chat_id = query.data.split('_')[-1]
+        chat_name = [chat['name'] for chat in get_all_active_chats() if str(chat['chat_id']) == chat_id][0]
+        context.user_data['search_chat_id'] = chat_id  # Сохраняем ID чата для последующего поиска
+        await query.edit_message_text(
+            text=f"Отлично, ищем ответ на вопрос в чате {chat_name}. Введите пожалуйста свой вопрос."
+        )
     else:
         await query.edit_message_text(text="Произошла ошибка. Попробуйте снова.")
-
-
-async def handle_text(update: Update, context: CallbackContext):
-    action = context.user_data.get('action')
-    if action == 'add':
-        await add_admins(update, context)
-    elif action == 'remove':
-        await remove_admins(update, context)
-    else:
-        # Если действие не установлено, не обрабатываем текст
-        await update.message.reply_text("Пожалуйста, выберите действие из меню.")
 
 async def add_admins(update: Update, context: CallbackContext):
     if 'admin_action' in context.user_data and context.user_data['admin_action'].get('action') == 'add':
@@ -135,10 +156,6 @@ async def add_admins(update: Update, context: CallbackContext):
 
 async def remove_admins(update: Update, context: CallbackContext):
     if 'admin_action' in context.user_data and context.user_data['admin_action'].get('action') == 'remove':
-        # отладка
-        action_info = context.user_data['admin_action']
-        print(f"Action info: {action_info}")
-        # отладка
         chat_id = context.user_data['admin_action']['chat_id']
         chat = get_chat(chat_id)
         user_logins = update.message.text.split()
@@ -176,4 +193,12 @@ async def is_bot_admin(bot: Bot, chat_id: int):
         return False
     except Exception as e:
         print(f"Error checking bot admin status: {str(e)}")
+        return False
+
+async def is_user_member_of_chat(bot, chat_id, user_id):
+    try:
+        member = await bot.get_chat_member(chat_id, user_id)
+        return member.status not in ['left', 'kicked']
+    except Exception as e:
+        print(f"Error checking membership in chat {chat_id}: {str(e)}")
         return False

@@ -1,6 +1,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-from database import add_chat, delete_chat, save_message, get_admins_for_chat
+from database import add_chat, delete_chat, save_message
 from datetime import datetime
 from suspicious_messages import is_suspicious, forward_suspicious_message
 from bot_functions import add_admins, remove_admins
@@ -23,25 +23,45 @@ async def track_chat(update: Update, context: CallbackContext):
             delete_chat(chat_id)
             print(f"Удален из чата: {chat_id}")
 
-async def start(update: Update, context: CallbackContext):
-    print("Я в хендлере старта")
+async def help(update: Update, context: CallbackContext):
+    if update.effective_chat.type != "private":
+        return
+    help_message = (
+        "Привет! Я ваш бот-помощник для чатов!\n\n"
+        "У меня есть 2 основные функции:\n"
+        "- Реагирование на спам в чатах\n"
+        "- Ответы на вопросы по чату\n\n"
+        "Если ты администратор, введи команду /settings для настройки или привязки чата.\n"
+        "Если ты пользователь и хочешь найти ответ на вопрос, введи команду /find_answer."
+    )
+    await update.message.reply_text(text=help_message)
+
+async def settings(update: Update, context: CallbackContext):
+    print("Я в хендлере настроек")
     if update.effective_chat.type != "private":
         return
     keyboard = [
         [InlineKeyboardButton("Привязать чат", callback_data='bind_chat')],
         [InlineKeyboardButton("Настроить чат", callback_data='configure_chat')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        'Привет! Я ваш бот-помощник для чатов!\n\n'
+        'Вы выбрали режим редактирования и привязки чатов. Выберете действие: \n',
+        reply_markup=reply_markup
+    )
+
+async def find_answer(update: Update, context: CallbackContext):
+    print("Я в хендлере поиска ответа")
+    if update.effective_chat.type != "private":
+        return
+    keyboard = [
         [InlineKeyboardButton("Найти ответ на вопрос", callback_data='find_answer')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        'Привет! Я ваш помощник для чатов, где могут задваться вопросы от пользователей!\n\n'
-        'У меня есть две функции: \n'
-        '1. Я умею реагировать на спам в чате и пересылать подозрительные сообщения администраторам чата\n'
-        '2. Я умею искать ответы на вопросы по чату, если мне их задать\n\n'
-        'Чтобы редактировать чат, где ты являешься администратором, нажми на кнопку "Настроить чат"\n'
-        'Чтобы найти ответ на свой вопрос, нажми на кнопку "Найти ответ на вопрос"\n'
-        'Чтобы привязать бот к чату для возможности настройки, нажми на кнопку "Привязать чат"\n\n'
-        'Важно добавить бота в администраторы канала, чтобы была возможность привязать его',
+        'Привет! Я ваш бот-помощник для чатов!\n\n'
+        'Вы выбрали режим поиска ответов по чату. Выберете действие \n',
         reply_markup=reply_markup
     )
 

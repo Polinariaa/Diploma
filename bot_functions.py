@@ -1,9 +1,9 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-from database import get_chat, set_bot_active, get_user_admin_chats, get_admins_for_chat, add_chat_admin, \
-    get_user_admin_id_by_login, get_active_user_admin_chats, delete_chat_admin, is_user_admin_of_chat, \
-    add_user_admin_to_chat_admins, is_user_admin_member_of_chat, get_all_active_chats
+from database import get_chat, set_bot_active, get_user_admin_chats, get_admins_for_chat, get_active_user_admin_chats, \
+    get_all_active_chats, add_spam_keyword, delete_spam_keyword, get_spam_keywords
 from telegram import Bot
+from manage_bot_admins import fetch_and_store_chat_members
 
 async def handle_button(update: Update, context: CallbackContext):
     print("Я в хендлере кнопок")
@@ -95,6 +95,7 @@ async def handle_button(update: Update, context: CallbackContext):
             keyboard = [
                 [InlineKeyboardButton("Добавить администраторов", callback_data=f"add_admins_{chat_id}")],
                 [InlineKeyboardButton("Удалить администраторов", callback_data=f"remove_admins_{chat_id}")],
+                [InlineKeyboardButton("Редактировать спам-словарь", callback_data=f"edit_spam_{chat_id}")],
                 [InlineKeyboardButton("<< Назад", callback_data="configure_chat")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -189,69 +190,66 @@ async def handle_button(update: Update, context: CallbackContext):
             text="Вы находитесь в режиме поиска ответа. Выберете действие:",
             reply_markup=reply_markup
         )
+    elif "edit_spam_" in query.data:
+        chat_id = int(query.data.split("_")[-1])
+        keyboard = [
+            [InlineKeyboardButton("Добавить спам-слова", callback_data=f"add_spam_{chat_id}")],
+            [InlineKeyboardButton("Удалить спам-слова", callback_data=f"delete_spam_{chat_id}")],
+            [InlineKeyboardButton("Посмотреть текущий список спам слов", callback_data=f"view_spam_{chat_id}")],
+            [InlineKeyboardButton("<< Назад", callback_data="configure_chat")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text="Выберите действие для редактирования списка подозрительных слов.",
+            reply_markup=reply_markup
+        )
+    elif query.data.startswith('add_spam_'):
+        chat_id = int(query.data.split('_')[2])
+        context.user_data['action'] = 'add_spam'
+        context.user_data['spam_chat_id'] = chat_id  # сохраняем ID чата для действий со спам-словами
+        await query.edit_message_text(
+            text="Введите слова через запятую, которые вы хотите добавить:",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data="edit_spam_{chat_id}")]])
+        )
+    elif query.data.startswith('delete_spam_'):
+        chat_id = int(query.data.split('_')[2])
+        context.user_data['action'] = 'delete_spam'
+        context.user_data['spam_chat_id'] = chat_id
+        await query.edit_message_text(
+            text="Введите слова через запятую, которые вы хотите удалить:",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data="edit_spam_{chat_id}")]])
+        )
+    elif 'spam_action' in context.user_data:
+        chat_id = context.user_data['spam_action']['chat_id']
+        action = context.user_data['spam_action']['action']
+        text = context.user_data.get('text_for_spam', '')
+        keywords = [keyword.strip() for keyword in text.split(',')]
+        if action == 'add':
+            for keyword in keywords:
+                add_spam_keyword(chat_id, keyword)
+            message = "Слова добавлены в список подозрительных."
+        elif action == 'delete':
+            for keyword in keywords:
+                delete_spam_keyword(chat_id, keyword)
+            message = "Слова удалены из списка подозрительных."
+        await update.message.reply_text(text=message)
+    elif query.data.startswith('view_spam_'):
+        chat_id = int(query.data.split('_')[2])
+        spam_keywords = get_spam_keywords(chat_id)
+        if spam_keywords:
+            keywords_text = '\n'.join(spam_keywords)
+            response_text = f"Текущий список спам-слов в чате:\n{keywords_text}"
+        else:
+            response_text = "Список спам-слов пуст."
+
+        await query.edit_message_text(
+            text=response_text,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("<< Назад", callback_data=f"edit_spam_{chat_id}")]
+            ])
+        )
     else:
         await query.edit_message_text(text="Произошла ошибка. Попробуйте снова.")
-
-# Добавление админов бота
-async def add_admins(update: Update, context: CallbackContext):
-    keyboard = [[InlineKeyboardButton("<< Назад", callback_data="configure_chat")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    if 'admin_action' in context.user_data and context.user_data['admin_action'].get('action') == 'add':
-        chat_id = context.user_data['admin_action']['chat_id']
-        chat = get_chat(chat_id)
-        user_logins = update.message.text.split()
-        added_admins = []
-        for login in user_logins:
-            user_id = get_user_admin_id_by_login(chat_id, login)
-            print(f"Checking login: {login}, found user_id: {user_id}")
-            if user_id and is_user_admin_member_of_chat(chat_id, user_id) and not is_user_admin_of_chat(chat_id, user_id):
-                add_chat_admin(chat_id, user_id)
-                added_admins.append(login)
-        if added_admins:
-            admins_str = ", ".join(added_admins)
-            await update.message.reply_text(text=f"В чат {chat['name']} добавлены администраторы: {admins_str}",
-                                            reply_markup=reply_markup)
-        else:
-            await update.message.reply_text(text="Никого не удалось добавить в администраторы.",
-                                            reply_markup=reply_markup)
-    else:
-        await update.message.reply_text(text="Произошла ошибка. Попробуйте снова.",
-                                        reply_markup=reply_markup)
-
-# Удаление админов бота
-async def remove_admins(update: Update, context: CallbackContext):
-    keyboard = [[InlineKeyboardButton("<< Назад", callback_data="configure_chat")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    if 'admin_action' in context.user_data and context.user_data['admin_action'].get('action') == 'remove':
-        chat_id = context.user_data['admin_action']['chat_id']
-        chat = get_chat(chat_id)
-        user_logins = update.message.text.split()
-        removed_admins = []
-        for login in user_logins:
-            user_id = get_user_admin_id_by_login(chat_id, login)
-            if user_id and is_user_admin_of_chat(chat_id, user_id):
-                delete_chat_admin(chat_id, user_id)
-                removed_admins.append(login)
-        if removed_admins:
-            admins_str = ", ".join(removed_admins)
-            await update.message.reply_text(text=f"Из чата {chat['name']} удалены администраторы: {admins_str}",
-                                            reply_markup=reply_markup)
-        else:
-            await update.message.reply_text(text="Никого не удалось удалить из администраторов.",
-                                            reply_markup=reply_markup)
-    else:
-        print("No admin_action in context.user_data")
-        await update.message.reply_text(text="Произошла ошибка. Попробуйте снова.",
-                                        reply_markup=reply_markup)
-
-# Обновление списка администраторов чата
-async def fetch_and_store_chat_members(bot: Bot, chat_id: int):
-    # Сначала получаем список администраторов чата
-    chat_administrators = await bot.get_chat_administrators(chat_id)
-    # Теперь сохраняем информацию о каждом администраторе в базу данных
-    for admin in chat_administrators:
-        if not admin.user.is_bot:
-            add_user_admin_to_chat_admins(chat_id, admin.user.id, admin.user.username or admin.user.first_name)
 
 # Проверка на то, является ли бот администратором
 async def is_bot_admin(bot: Bot, chat_id: int):

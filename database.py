@@ -39,6 +39,14 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
 );
 ''')
+# Создание таблицы для хранения спам-слов
+c.execute('''
+CREATE TABLE IF NOT EXISTS spam_keywords (
+    chat_id INTEGER,
+    keyword TEXT,
+    PRIMARY KEY (chat_id, keyword),
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
+);''')
 
 # Запрос данных
 def get_chat(chat_id):
@@ -139,6 +147,18 @@ def save_message(chat_id, message_id, text, timestamp):
         conn.execute('''
             INSERT INTO messages (chat_id, message_id, text, timestamp) VALUES (?, ?, ?, ?)
         ''', (chat_id, message_id, text, timestamp))
+
+def add_spam_keyword(chat_id, keyword):
+    c.execute("INSERT OR IGNORE INTO spam_keywords (chat_id, keyword) VALUES (?, ?)", (chat_id, keyword))
+    conn.commit()
+
+def delete_spam_keyword(chat_id, keyword):
+    c.execute("DELETE FROM spam_keywords WHERE chat_id=? AND keyword=?", (chat_id, keyword))
+    conn.commit()
+
+def get_spam_keywords(chat_id):
+    c.execute("SELECT keyword FROM spam_keywords WHERE chat_id=?", (chat_id,))
+    return [row['keyword'] for row in c.fetchall()]
 
 def print_all_chats():
     c.execute("SELECT * FROM chats")

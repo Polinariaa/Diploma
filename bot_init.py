@@ -2,9 +2,9 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from database import add_chat, delete_chat, save_message
 from datetime import datetime
-from suspicious_messages import is_suspicious, forward_suspicious_message
-from bot_functions import add_admins, remove_admins
+from suspicious_messages import is_suspicious, forward_suspicious_message, process_spam_keywords
 from answers import handle_search_query
+from manage_bot_admins import add_admins, remove_admins
 
 
 async def track_chat(update: Update, context: CallbackContext):
@@ -69,16 +69,18 @@ async def handle_text(update, context):
     print("Я в хендлере текста")
     text = update.message.text
     chat_id = update.message.chat_id
+    user_id = update.message.from_user.id
     message_id = update.message.message_id
     chat_name = update.message.chat.title
     timestamp = datetime.now()
     chat_type = update.message.chat.type
+    context.user_data['text_for_spam'] = update.message.text
 
     if chat_type in ["group", "supergroup"]:
         # Сохраняем все сообщения в базу данных
         save_message(chat_id, message_id, text, timestamp)
 
-        if is_suspicious(text):
+        if is_suspicious(chat_id, text):
             await forward_suspicious_message(context.bot, chat_id, message_id, chat_name, timestamp)
 
     else:
@@ -89,6 +91,9 @@ async def handle_text(update, context):
             await add_admins(update, context)
         elif action == 'remove':
             await remove_admins(update, context)
+        elif 'action' in context.user_data and context.user_data['action'] in ['add_spam', 'delete_spam']:
+            context.user_data['text_for_spam'] = text
+            await process_spam_keywords(update, context)
         elif search_chat_id:
             await handle_search_query(update, context)
         else:

@@ -5,12 +5,13 @@ conn = sqlite3.connect('bot_database.db')
 conn.row_factory = sqlite3.Row
 c = conn.cursor()
 
-# Создание таблицы
+# Создание таблицы с чатами
 c.execute('''CREATE TABLE IF NOT EXISTS chats (
     chat_id INTEGER PRIMARY KEY,
     name TEXT,
     is_bot_active BOOLEAN
 );''')
+# Создание таблицы с админами бота
 c.execute('''
 CREATE TABLE IF NOT EXISTS chat_admins (
     chat_id INTEGER,
@@ -18,6 +19,7 @@ CREATE TABLE IF NOT EXISTS chat_admins (
     PRIMARY KEY (chat_id, user_id),
     FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
 );''')
+# Создание таблицы с админами чата
 c.execute('''
 CREATE TABLE IF NOT EXISTS chat_users_admins (
     chat_id INTEGER,
@@ -27,6 +29,7 @@ CREATE TABLE IF NOT EXISTS chat_users_admins (
     FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
 );
 ''')
+# Создание таблицы с сообщениями
 c.execute('''
 CREATE TABLE IF NOT EXISTS messages (
     chat_id INTEGER,

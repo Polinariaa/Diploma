@@ -41,7 +41,7 @@ async def settings(update: Update, context: CallbackContext):
     if update.effective_chat.type != "private":
         return
     keyboard = [
-        [InlineKeyboardButton("Привязать чат", callback_data='bind_chat')],
+        [InlineKeyboardButton("Привязать чат для активации функций", callback_data='bind_chat')],
         [InlineKeyboardButton("Настроить чат", callback_data='configure_chat')],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -69,7 +69,6 @@ async def handle_text(update, context):
     print("Я в хендлере текста")
     text = update.message.text
     chat_id = update.message.chat_id
-    user_id = update.message.from_user.id
     message_id = update.message.message_id
     chat_name = update.message.chat.title
     timestamp = datetime.now()

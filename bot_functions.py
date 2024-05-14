@@ -31,14 +31,18 @@ async def handle_button(update: Update, context: CallbackContext):
             keyboard.append([InlineKeyboardButton("<< Назад", callback_data="back_to_main_settings")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="Отлично, мы нашли чаты, в которых вы являетесь администратором. Какой из них вы хотите привязать к боту?",
+                text="Мы нашли чаты, в которых вы являетесь администратором. Какой из них вы хотите привязать к боту?",
                 reply_markup=reply_markup
             )
         else:
             keyboard = [[InlineKeyboardButton("<< Назад", callback_data="back_to_main_settings")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="К сожалению, не нашли чат, в который вы бы добавили бота или он бы ещё не был привязан. Возможно, вы не назначили боту права администратора. Добавьте бота и вернитесь к его привязке через основное меню.",
+                text="К сожалению, не нашли чат, к которому можно привязать бота\n\n"
+                     "Чтобы привязать бота к чату, нужно:\n"
+                     "1. Добавить бота в чат\n"
+                     "2. Назначить бот адаминистратором\n\n"
+                     "Возможно, вы уже привзяали бота к чату и можно переходить к его настройке. Если нет, топроследуйте инструкциям и вернитесь к привязке бота через основное меню.",
                 reply_markup=reply_markup
             )
     elif query.data == 'configure_chat':
@@ -51,7 +55,7 @@ async def handle_button(update: Update, context: CallbackContext):
             keyboard.append([InlineKeyboardButton("<< Назад", callback_data="back_to_main_settings")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="Хорошо, вот все каналы, в которых вы являетесь администратором. Нажмите на нужный, чтобы увидеть параметры настройки.",
+                text="Вот все каналы, в которых вы являетесь администратором. Нажмите на нужный, чтобы увидеть параметры настройки.",
                 reply_markup=reply_markup
             )
         else:
@@ -111,7 +115,9 @@ async def handle_button(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("<< Назад", callback_data="configure_chat")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
-            text="Введите логин пользователя, которого хотите добавить в администраторы. Важно понимать, что администратором может стать только тот, у кого есть права администратора канала. Вы можете указать несколько логинов, разделив их пробелом.",
+            text="Введите логин пользователя, которого хотите добавить в администраторы.\n"
+                 "Только администратор чата может быть назначен на роль администратора бота.\n"
+                 "Вы можете указать несколько логинов, разделив их пробелом.",
             reply_markup=reply_markup
         )
     elif "remove_admins_" in query.data:
@@ -121,10 +127,12 @@ async def handle_button(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("<< Назад", callback_data="configure_chat")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
-            text="Введите логин пользователя, которого хотите удалить из администраторов. Вы можете указать несколько логинов, разделив их пробелом.",
+            text="Введите логин пользователя, которого хотите удалить из администраторов.\n"
+                 "Вы можете указать несколько логинов, разделив их пробелом.",
             reply_markup=reply_markup
         )
     elif query.data == 'find_answer':
+        # Поиск ответа по чату
         all_chats = get_all_active_chats()  # функция, возвращающая все активные чаты из базы
         user_chats = []
         for chat in all_chats:
@@ -139,7 +147,8 @@ async def handle_button(update: Update, context: CallbackContext):
             keyboard.append([InlineKeyboardButton("<< Назад", callback_data="back_to_main_answer_find")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="Вот все чаты с ботом, в которых ты состоишь. Выбери, в каком именно чате ты хочешь найти ответ на свой вопрос",
+                text="Вот все чаты с ботом, в которых вы состоите.\n"
+                     "Выберете, в каком именно чате вы хотите найти ответ на вопрос",
                 reply_markup=reply_markup
             )
         else:
@@ -156,7 +165,7 @@ async def handle_button(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("<< Назад", callback_data="find_answer")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
-            text=f"Отлично, ищем ответ на вопрос в чате {chat_name}. Введите пожалуйста свой вопрос.",
+            text=f"Ищем ответ на вопрос в чате {chat_name}. Введите пожалуйста свой вопрос.",
             reply_markup=reply_markup
         )
     elif query.data == 'back_to_main_settings':
@@ -183,6 +192,7 @@ async def handle_button(update: Update, context: CallbackContext):
     else:
         await query.edit_message_text(text="Произошла ошибка. Попробуйте снова.")
 
+# Добавление админов бота
 async def add_admins(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("<< Назад", callback_data="configure_chat")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -208,6 +218,7 @@ async def add_admins(update: Update, context: CallbackContext):
         await update.message.reply_text(text="Произошла ошибка. Попробуйте снова.",
                                         reply_markup=reply_markup)
 
+# Удаление админов бота
 async def remove_admins(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("<< Назад", callback_data="configure_chat")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -233,19 +244,20 @@ async def remove_admins(update: Update, context: CallbackContext):
         await update.message.reply_text(text="Произошла ошибка. Попробуйте снова.",
                                         reply_markup=reply_markup)
 
+# Обновление списка администраторов чата
 async def fetch_and_store_chat_members(bot: Bot, chat_id: int):
     # Сначала получаем список администраторов чата
     chat_administrators = await bot.get_chat_administrators(chat_id)
     # Теперь сохраняем информацию о каждом администраторе в базу данных
     for admin in chat_administrators:
-        # Добавьте проверку, чтобы не добавлять бота самого в список
         if not admin.user.is_bot:
             add_user_admin_to_chat_admins(chat_id, admin.user.id, admin.user.username or admin.user.first_name)
 
+# Проверка на то, является ли бот администратором
 async def is_bot_admin(bot: Bot, chat_id: int):
     try:
         chat_administrators = await bot.get_chat_administrators(chat_id)
-        bot_user_id = bot.id  # Получаем ID бота
+        bot_user_id = bot.id
         for admin in chat_administrators:
             if admin.user.id == bot_user_id:
                 return True
@@ -254,6 +266,7 @@ async def is_bot_admin(bot: Bot, chat_id: int):
         print(f"Error checking bot admin status: {str(e)}")
         return False
 
+# Проверка на то, является ли конкретный пользователь пользователем чата
 async def is_user_member_of_chat(bot, chat_id, user_id):
     try:
         member = await bot.get_chat_member(chat_id, user_id)

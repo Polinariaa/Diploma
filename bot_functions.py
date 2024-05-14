@@ -1,7 +1,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from database import get_chat, set_bot_active, get_user_admin_chats, get_admins_for_chat, get_active_user_admin_chats, \
-    get_all_active_chats, add_spam_keyword, delete_spam_keyword, get_spam_keywords
+    get_all_active_chats, add_spam_keyword, delete_spam_keyword, get_spam_keywords, get_admins_with_usernames_for_chat
 from telegram import Bot
 from manage_bot_admins import fetch_and_store_chat_members
 
@@ -16,7 +16,6 @@ async def handle_button(update: Update, context: CallbackContext):
 
     user_id = query.from_user.id
     if query.data == 'bind_chat':
-        # Фильтруем только те чаты, где пользователь является администратором
         admin_chats = get_user_admin_chats(user_id)
         valid_chats = []
         if admin_chats:
@@ -41,8 +40,8 @@ async def handle_button(update: Update, context: CallbackContext):
                 text="К сожалению, не нашли чат, к которому можно привязать бота\n\n"
                      "Чтобы привязать бота к чату, нужно:\n"
                      "1. Добавить бота в чат\n"
-                     "2. Назначить бот адаминистратором\n\n"
-                     "Возможно, вы уже привзяали бота к чату и можно переходить к его настройке. Если нет, топроследуйте инструкциям и вернитесь к привязке бота через основное меню.",
+                     "2. Назначить бот администратором\n\n"
+                     "Возможно, вы уже привязали бота к чату и можно переходить к его настройке. Если нет, то проследуйте инструкциям и вернитесь к привязке бота через основное меню.",
                 reply_markup=reply_markup
             )
     elif query.data == 'configure_chat':
@@ -93,8 +92,7 @@ async def handle_button(update: Update, context: CallbackContext):
         chat = get_chat(chat_id)
         if chat:
             keyboard = [
-                [InlineKeyboardButton("Добавить администраторов", callback_data=f"add_admins_{chat_id}")],
-                [InlineKeyboardButton("Удалить администраторов", callback_data=f"remove_admins_{chat_id}")],
+                [InlineKeyboardButton("Редактировать список администраторов бота", callback_data=f"edit_admins_{chat_id}")],
                 [InlineKeyboardButton("Редактировать спам-словарь", callback_data=f"edit_spam_{chat_id}")],
                 [InlineKeyboardButton("<< Назад", callback_data="configure_chat")]
             ]
@@ -108,12 +106,26 @@ async def handle_button(update: Update, context: CallbackContext):
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(text="Не удалось найти выбранный чат.",
                                           reply_markup=reply_markup)
+    elif "edit_admins_" in query.data:
+        chat_id = int(query.data.split("_")[-1])
+        keyboard = [
+            [InlineKeyboardButton("Добавить администраторов", callback_data=f"add_admins_{chat_id}")],
+            [InlineKeyboardButton("Удалить администраторов", callback_data=f"remove_admins_{chat_id}")],
+            [InlineKeyboardButton("Посмотреть список всех текущих администраторов",
+                                  callback_data=f"view_admins_{chat_id}")],
+            [InlineKeyboardButton("<< Назад", callback_data=f"config_chat_{chat_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text="Выберите действие для редактирования списка администраторов.",
+            reply_markup=reply_markup
+        )
     elif "add_admins_" in query.data:
         chat_id = int(query.data.split("_")[-1])
         await fetch_and_store_chat_members(context.bot, chat_id)
         context.user_data['action'] = 'add'
         context.user_data['admin_action'] = {'chat_id': chat_id, 'action': 'add'}
-        keyboard = [[InlineKeyboardButton("<< Назад", callback_data="configure_chat")]]
+        keyboard = [[InlineKeyboardButton("<< Назад", callback_data=f"edit_admins_{chat_id}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
             text="Введите логин пользователя, которого хотите добавить в администраторы.\n"
@@ -125,15 +137,25 @@ async def handle_button(update: Update, context: CallbackContext):
         chat_id = int(query.data.split("_")[-1])
         context.user_data['action'] = 'remove'
         context.user_data['admin_action'] = {'chat_id': chat_id, 'action': 'remove'}
-        keyboard = [[InlineKeyboardButton("<< Назад", callback_data="configure_chat")]]
+        keyboard = [[InlineKeyboardButton("<< Назад", callback_data=f"edit_admins_{chat_id}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
             text="Введите логин пользователя, которого хотите удалить из администраторов.\n"
                  "Вы можете указать несколько логинов, разделив их пробелом.",
             reply_markup=reply_markup
         )
+    elif "view_admins_" in query.data:
+        chat_id = int(query.data.split("_")[-1])
+        chat = get_chat(chat_id)
+        admins = get_admins_with_usernames_for_chat(chat_id)
+        admin_list = "\n".join([f"@{admin}" for admin in admins]) if admins else "Администраторы не найдены."
+        keyboard = [[InlineKeyboardButton("<< Назад", callback_data=f"edit_admins_{chat_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text=f"Список администраторов для чата '{chat['name']}':\n{admin_list}",
+            reply_markup=reply_markup
+        )
     elif query.data == 'find_answer':
-        # Поиск ответа по чату
         all_chats = get_all_active_chats()  # функция, возвращающая все активные чаты из базы
         user_chats = []
         for chat in all_chats:
@@ -196,28 +218,28 @@ async def handle_button(update: Update, context: CallbackContext):
             [InlineKeyboardButton("Добавить спам-слова", callback_data=f"add_spam_{chat_id}")],
             [InlineKeyboardButton("Удалить спам-слова", callback_data=f"delete_spam_{chat_id}")],
             [InlineKeyboardButton("Посмотреть текущий список спам слов", callback_data=f"view_spam_{chat_id}")],
-            [InlineKeyboardButton("<< Назад", callback_data="configure_chat")]
+            [InlineKeyboardButton("<< Назад", callback_data=f"config_chat_{chat_id}")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
             text="Выберите действие для редактирования списка подозрительных слов.",
             reply_markup=reply_markup
         )
-    elif query.data.startswith('add_spam_'):
+    elif "add_spam_" in query.data:
         chat_id = int(query.data.split('_')[2])
         context.user_data['action'] = 'add_spam'
         context.user_data['spam_chat_id'] = chat_id  # сохраняем ID чата для действий со спам-словами
         await query.edit_message_text(
             text="Введите слова через запятую, которые вы хотите добавить:",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data="edit_spam_{chat_id}")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data=f"edit_spam_{chat_id}")]])
         )
-    elif query.data.startswith('delete_spam_'):
+    elif "delete_spam_" in query.data:
         chat_id = int(query.data.split('_')[2])
         context.user_data['action'] = 'delete_spam'
         context.user_data['spam_chat_id'] = chat_id
         await query.edit_message_text(
             text="Введите слова через запятую, которые вы хотите удалить:",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data="edit_spam_{chat_id}")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data=f"edit_spam_{chat_id}")]])
         )
     elif 'spam_action' in context.user_data:
         chat_id = context.user_data['spam_action']['chat_id']

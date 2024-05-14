@@ -160,6 +160,16 @@ def get_spam_keywords(chat_id):
     c.execute("SELECT keyword FROM spam_keywords WHERE chat_id=?", (chat_id,))
     return [row['keyword'] for row in c.fetchall()]
 
+def get_admins_with_usernames_for_chat(chat_id):
+    query = """
+        SELECT cua.username
+        FROM chat_admins ca
+        JOIN chat_users_admins cua ON ca.chat_id = cua.chat_id AND ca.user_id = cua.user_id
+        WHERE ca.chat_id = ?
+    """
+    c.execute(query, (chat_id,))
+    return [row['username'] for row in c.fetchall()]
+
 def print_all_chats():
     c.execute("SELECT * FROM chats")
     all_chats = c.fetchall()

@@ -1,5 +1,4 @@
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-
 from database import get_admins_for_chat, get_spam_keywords, add_spam_keyword, delete_spam_keyword
 
 async def process_spam_keywords(update, context):
@@ -32,12 +31,23 @@ async def process_spam_keywords(update, context):
 async def forward_suspicious_message(bot, chat_id, message_id, chat_name, timestamp):
     admins = get_admins_for_chat(chat_id)  # Получаем список админов из базы
     time_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+
+    # Получаем информацию о чате
+    chat = await bot.get_chat(chat_id)
+    chat_username = chat.username  # Получаем username чата
+
+    if chat_username:
+        message_link = f"https://t.me/{chat_username}/{message_id}"
+    else:
+        message_link = "Чат является приватным, ссылка недоступна."
     for admin in admins:
         try:
             await bot.forward_message(chat_id=admin, from_chat_id=chat_id, message_id=message_id)
             await bot.send_message(
                 chat_id=admin,
-                text=f"Подозрительное сообщение в чате {chat_name}.\nВремя отправки сообщения в чат: {time_str}"
+                text=f"Подозрительное сообщение в чате {chat_name}.\n"
+                     f"Время отправки сообщения в чат: {time_str}\n\n"
+                     f"Ссылка на сообщение: {message_link}"
             )
         except Exception as e:
             print(f"Не удалось переслать сообщение администратору {admin}: {str(e)}")

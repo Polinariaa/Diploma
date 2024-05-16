@@ -29,16 +29,6 @@ CREATE TABLE IF NOT EXISTS chat_users_admins (
     FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
 );
 ''')
-# Создание таблицы с сообщениями
-c.execute('''
-CREATE TABLE IF NOT EXISTS messages (
-    chat_id INTEGER,
-    message_id INTEGER PRIMARY KEY,
-    text TEXT,
-    timestamp DATETIME,
-    FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
-);
-''')
 # Создание таблицы для хранения спам-слов
 c.execute('''
 CREATE TABLE IF NOT EXISTS spam_keywords (
@@ -47,6 +37,16 @@ CREATE TABLE IF NOT EXISTS spam_keywords (
     PRIMARY KEY (chat_id, keyword),
     FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
 );''')
+# Добавление таблицы часто задаваемых вопросов и ответов
+c.execute('''
+CREATE TABLE IF NOT EXISTS faq (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id INTEGER,
+    question TEXT,
+    answer TEXT,
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
+);
+''')
 
 # Запрос данных
 def get_chat(chat_id):
@@ -135,18 +135,6 @@ def get_all_active_chats():
     c.execute("SELECT * FROM chats WHERE is_bot_active = 1")
     return [{'chat_id': row['chat_id'], 'name': row['name']} for row in c.fetchall()]
 
-def find_message_in_chat(chat_id, query):
-    c.execute('''
-            SELECT * FROM messages WHERE chat_id = ? AND text LIKE ?
-        ''', (chat_id, f"%{query}%"))
-    messages = c.fetchall()
-    return messages  # Возвращает список словарей, где каждый словарь представляет сообщение
-
-def save_message(chat_id, message_id, text, timestamp):
-    with conn:
-        conn.execute('''
-            INSERT INTO messages (chat_id, message_id, text, timestamp) VALUES (?, ?, ?, ?)
-        ''', (chat_id, message_id, text, timestamp))
 
 def add_spam_keyword(chat_id, keyword):
     c.execute("INSERT OR IGNORE INTO spam_keywords (chat_id, keyword) VALUES (?, ?)", (chat_id, keyword))
@@ -169,6 +157,21 @@ def get_admins_with_usernames_for_chat(chat_id):
     """
     c.execute(query, (chat_id,))
     return [row['username'] for row in c.fetchall()]
+
+# Добавление нового вопроса-ответа
+def add_faq(chat_id, question, answer):
+    c.execute("INSERT INTO faq (chat_id, question, answer) VALUES (?, ?, ?)", (chat_id, question, answer))
+    conn.commit()
+
+# Удаление вопроса-ответа по ID
+def delete_faq(faq_id):
+    c.execute("DELETE FROM faq WHERE id=?", (faq_id,))
+    conn.commit()
+
+# Получение всех вопросо-ответов для чата
+def get_all_faqs(chat_id):
+    c.execute("SELECT * FROM faq WHERE chat_id=?", (chat_id,))
+    return c.fetchall()
 
 def print_all_chats():
     c.execute("SELECT * FROM chats")

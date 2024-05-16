@@ -2,8 +2,10 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from database import get_chat, set_bot_active, get_user_admin_chats, get_admins_for_chat, get_active_user_admin_chats, \
     get_all_active_chats, add_spam_keyword, delete_spam_keyword, get_spam_keywords, get_admins_with_usernames_for_chat
-from telegram import Bot
 from manage_bot_admins import fetch_and_store_chat_members
+from answers import edit_faq, add_faq_question_handler, delete_faq_question_handler, view_faq_admin, view_faq_user, \
+    handle_faq_text, find_answer
+from utils import is_bot_admin
 
 async def handle_button(update: Update, context: CallbackContext):
     print("Я в хендлере кнопок")
@@ -94,6 +96,7 @@ async def handle_button(update: Update, context: CallbackContext):
             keyboard = [
                 [InlineKeyboardButton("Редактировать список администраторов бота", callback_data=f"edit_admins_{chat_id}")],
                 [InlineKeyboardButton("Редактировать спам-словарь", callback_data=f"edit_spam_{chat_id}")],
+                [InlineKeyboardButton("Редактировать часто задаваемые вопросы", callback_data=f"edit_faq_{chat_id}")],
                 [InlineKeyboardButton("<< Назад", callback_data="configure_chat")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -156,31 +159,7 @@ async def handle_button(update: Update, context: CallbackContext):
             reply_markup=reply_markup
         )
     elif query.data == 'find_answer':
-        all_chats = get_all_active_chats()  # функция, возвращающая все активные чаты из базы
-        user_chats = []
-        for chat in all_chats:
-            if await is_user_member_of_chat(context.bot, chat['chat_id'], user_id):
-                user_chats.append(chat)
-
-        if user_chats:
-            keyboard = [
-                [InlineKeyboardButton(chat['name'], callback_data=f"answer_chat_{chat['chat_id']}")]
-                for chat in user_chats
-            ]
-            keyboard.append([InlineKeyboardButton("<< Назад", callback_data="back_to_main_answer_find")])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(
-                text="Вот все чаты с ботом, в которых вы состоите.\n"
-                     "Выберете, в каком именно чате вы хотите найти ответ на вопрос",
-                reply_markup=reply_markup
-            )
-        else:
-            keyboard = [[InlineKeyboardButton("<< Назад", callback_data="back_to_main_answer_find")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(
-                text="Похоже, вы не состоите ни в одном чате с активированным ботом.",
-                reply_markup=reply_markup
-            )
+        await find_answer(update, context)
     elif query.data.startswith('answer_chat_'):
         chat_id = query.data.split('_')[-1]
         chat_name = [chat['name'] for chat in get_all_active_chats() if str(chat['chat_id']) == chat_id][0]
@@ -270,27 +249,17 @@ async def handle_button(update: Update, context: CallbackContext):
                 [InlineKeyboardButton("<< Назад", callback_data=f"edit_spam_{chat_id}")]
             ])
         )
+    elif "edit_faq_" in query.data:
+        await edit_faq(update, context)
+    elif "add_faq_question_" in query.data:
+        await add_faq_question_handler(update, context)
+    elif "delete_faq_question_" in query.data:
+        await delete_faq_question_handler(update, context)
+    elif query.data.startswith('view_faq_user_'):
+        await view_faq_user(update, context)
+    elif query.data.startswith('view_faq_admin_'):
+        await view_faq_admin(update, context)
+    elif query.data.startswith('confirm_delete_faq_'):
+        await handle_faq_text(update, context)
     else:
         await query.edit_message_text(text="Произошла ошибка. Попробуйте снова.")
-
-# Проверка на то, является ли бот администратором
-async def is_bot_admin(bot: Bot, chat_id: int):
-    try:
-        chat_administrators = await bot.get_chat_administrators(chat_id)
-        bot_user_id = bot.id
-        for admin in chat_administrators:
-            if admin.user.id == bot_user_id:
-                return True
-        return False
-    except Exception as e:
-        print(f"Error checking bot admin status: {str(e)}")
-        return False
-
-# Проверка на то, является ли конкретный пользователь пользователем чата
-async def is_user_member_of_chat(bot, chat_id, user_id):
-    try:
-        member = await bot.get_chat_member(chat_id, user_id)
-        return member.status not in ['left', 'kicked']
-    except Exception as e:
-        print(f"Error checking membership in chat {chat_id}: {str(e)}")
-        return False

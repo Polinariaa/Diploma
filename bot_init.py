@@ -1,10 +1,10 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-from database import add_chat, delete_chat, save_message
+from database import add_chat, delete_chat
 from datetime import datetime
 from suspicious_messages import is_suspicious, forward_suspicious_message, process_spam_keywords
-from answers import handle_search_query
 from manage_bot_admins import add_admins, remove_admins
+from answers import handle_faq_text
 
 
 async def track_chat(update: Update, context: CallbackContext):
@@ -51,20 +51,6 @@ async def settings(update: Update, context: CallbackContext):
         reply_markup=reply_markup
     )
 
-async def find_answer(update: Update, context: CallbackContext):
-    print("Я в хендлере поиска ответа")
-    if update.effective_chat.type != "private":
-        return
-    keyboard = [
-        [InlineKeyboardButton("Найти ответ на вопрос", callback_data='find_answer')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        'Привет! Я ваш бот-помощник для чатов!\n\n'
-        'Вы выбрали режим поиска ответов по чату. Выберете действие \n',
-        reply_markup=reply_markup
-    )
-
 async def handle_text(update, context):
     print("Я в хендлере текста")
     text = update.message.text
@@ -77,15 +63,11 @@ async def handle_text(update, context):
     context.user_data['text_for_spam'] = update.message.text
 
     if chat_type in ["group", "supergroup"]:
-        # Сохраняем все сообщения в базу данных
-        save_message(chat_id, message_id, text, timestamp)
-
         if is_suspicious(chat_id, text):
             await forward_suspicious_message(context.bot, chat_id, message_id, chat_name, timestamp)
 
     else:
         action = context.user_data.get('action')
-        search_chat_id = context.user_data.get('search_chat_id')
 
         if action == 'add':
             await add_admins(update, context)
@@ -94,8 +76,8 @@ async def handle_text(update, context):
         elif 'action' in context.user_data and context.user_data['action'] in ['add_spam', 'delete_spam']:
             context.user_data['text_for_spam'] = text
             await process_spam_keywords(update, context)
-        elif search_chat_id:
-            await handle_search_query(update, context)
+        elif action in ['add_faq_question', 'add_faq_answer', 'delete_faq_question']:
+            await handle_faq_text(update, context)
         else:
             # Если действие не установлено, не обрабатываем текст
             await update.message.reply_text("Пожалуйста, выберите действие из меню.")

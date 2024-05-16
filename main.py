@@ -1,6 +1,7 @@
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from bot_init import track_chat, handle_text, help, settings, find_answer
+from bot_init import track_chat, handle_text, help, settings
 from bot_functions import handle_button
+from answers import handle_faq_text, find_answer
 
 def main():
     TOKEN = '6714836351:AAGqOkFIRdr68t3skyhS6_d2l6Zn8D9ZBEc'
@@ -15,6 +16,7 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_button))
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    application.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_faq_text))
 
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, track_chat))
     application.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, track_chat))

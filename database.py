@@ -47,6 +47,13 @@ CREATE TABLE IF NOT EXISTS faq (
     FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
 );
 ''')
+# Создание таблицы для хранения контекста
+c.execute('''
+CREATE TABLE IF NOT EXISTS chat_context (
+    chat_id INTEGER PRIMARY KEY,
+    context TEXT,
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id)
+);''')
 
 # Запрос данных
 def get_chat(chat_id):
@@ -172,6 +179,17 @@ def delete_faq(faq_id):
 def get_all_faqs(chat_id):
     c.execute("SELECT * FROM faq WHERE chat_id=?", (chat_id,))
     return c.fetchall()
+
+def get_context(chat_id):
+    c.execute("SELECT context FROM chat_context WHERE chat_id=?", (chat_id,))
+    result = c.fetchone()
+    if result:
+        return result['context']
+    return None
+
+def set_context(chat_id, context_text):
+    c.execute("INSERT OR REPLACE INTO chat_context (chat_id, context) VALUES (?, ?)", (chat_id, context_text))
+    conn.commit()
 
 def print_all_chats():
     c.execute("SELECT * FROM chats")

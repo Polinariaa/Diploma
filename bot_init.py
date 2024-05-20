@@ -1,10 +1,10 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-from database import add_chat, delete_chat
+from database import add_chat, delete_chat, set_context
 from datetime import datetime
 from suspicious_messages import is_suspicious, forward_suspicious_message, process_spam_keywords
 from manage_bot_admins import add_admins, remove_admins
-from answers import handle_faq_text
+from answers import handle_faq_text, handle_search_query
 
 
 async def track_chat(update: Update, context: CallbackContext):
@@ -78,6 +78,20 @@ async def handle_text(update, context):
             await process_spam_keywords(update, context)
         elif action in ['add_faq_question', 'add_faq_answer', 'delete_faq_question']:
             await handle_faq_text(update, context)
+        elif action == 'ask_question':
+            chat_id = context.user_data['chat_id']
+            response_text = await handle_search_query(chat_id, text)
+            await update.message.reply_text(text=response_text)
+        elif action == 'edit_text_context':
+            chat_id = context.user_data['context_chat_id']
+            set_context(chat_id, text)
+            context.user_data.pop('action', None)
+            context.user_data.pop('context_chat_id', None)
+            await update.message.reply_text(
+                text="Контекст успешно обновлён!",
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("<< Назад", callback_data=f"edit_context_{chat_id}")]])
+            )
         else:
             # Если действие не установлено, не обрабатываем текст
             await update.message.reply_text("Пожалуйста, выберите действие из меню.")

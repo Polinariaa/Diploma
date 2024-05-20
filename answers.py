@@ -1,7 +1,8 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-from database import add_faq, delete_faq, get_all_faqs, get_all_active_chats
+from database import add_faq, delete_faq, get_all_faqs, get_all_active_chats, get_context
 from utils import is_user_member_of_chat
+import openai
 
 
 async def find_answer(update: Update, context: CallbackContext):
@@ -22,7 +23,7 @@ async def find_answer(update: Update, context: CallbackContext):
 
     if user_chats:
         keyboard = [
-            [InlineKeyboardButton(chat['name'], callback_data=f"view_faq_user_{chat['chat_id']}")]
+            [InlineKeyboardButton(chat['name'], callback_data=f"select_answer_chat_{chat['chat_id']}")]
             for chat in user_chats
         ]
         keyboard.append([InlineKeyboardButton("<< Назад", callback_data="back_to_main_answer_find")])
@@ -131,7 +132,7 @@ async def view_faq_user(update: Update, context: CallbackContext):
     else:
         faq_text = "Нет сохраненных вопросов и ответов."
 
-    keyboard = [[InlineKeyboardButton("<< Назад", callback_data="find_answer")]]
+    keyboard = [[InlineKeyboardButton("<< Назад", callback_data=f"select_answer_chat_{chat_id}")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
         text=f"Текущие вопросы и ответы:\n\n{faq_text}",
@@ -170,3 +171,86 @@ async def handle_faq_text(update: Update, context: CallbackContext):
             text="Вопрос и ответ успешно удалены!",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data=f"edit_faq_{chat_id}")]])
         )
+
+async def handle_search_query(chat_id, question):
+    print(chat_id)
+    context_text = get_context(chat_id)
+    if not context_text:
+        context_text = "Контекст не установлен для этого чата."
+    print(context_text)
+    client = openai.OpenAI(
+        base_url="url",
+        api_key="key"
+    )
+    response = client.chat.completions.create(
+      model="gpt-3.5-turbo",
+      messages=[
+        {
+          "role": "system",
+          "content": context_text
+        },
+        {
+          "role": "user",
+          "content": question
+        }
+      ],
+      temperature=0.7,
+      max_tokens=1000,
+      top_p=1
+    )
+    return response.choices[0].message.content
+
+
+async def edit_context(update: Update, context: CallbackContext):
+    print("Редактирование контекста...")
+    query = update.callback_query
+    chat_id = int(query.data.split("_")[-1])
+    keyboard = [
+        [InlineKeyboardButton("Редактировать контекст", callback_data=f"edit_text_context_{chat_id}")],
+        [InlineKeyboardButton("Посмотреть текущий контекст", callback_data=f"view_context_{chat_id}")],
+        [InlineKeyboardButton("<< Назад", callback_data=f"config_chat_{chat_id}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = f"Контекст - это то, что мы будем передавать в нейросеть для того, чтобы она могла дать ответ на " \
+           f"вопросы, которые будут задавать пользователи. Чем более полный контекст, тем больше вопросов он " \
+           f"сможет охватить и более точно на них ответить. " \
+           f"Выберите действие:"
+    await query.edit_message_text(
+        text=text,
+        reply_markup=reply_markup
+    )
+
+async def edit_context_text(update: Update, context: CallbackContext):
+    print("Редактирование текста контекста...")
+    query = update.callback_query
+    chat_id = int(query.data.split("_")[-1])
+    context.user_data['action'] = 'edit_text_context'
+    context.user_data['context_chat_id'] = chat_id
+
+    # Получение текущего контекста из базы данных
+    current_context = get_context(chat_id)
+    if current_context:
+        text = f"Текущий контекст:\n\n{current_context}\n\nВведите новый контекст для чата:"
+    else:
+        text = "Введите новый контекст для чата:"
+
+    reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data=f"edit_context_{chat_id}")]])
+    await query.edit_message_text(
+        text=text,
+        reply_markup=reply_markup
+    )
+
+async def view_context(update: Update, context: CallbackContext):
+    print("Просмотр контекста...")
+    query = update.callback_query
+    chat_id = int(query.data.split("_")[-1])
+    context_text = get_context(chat_id)
+    if context_text:
+        text = f"Текущий контекст:\n{context_text}"
+    else:
+        text = "Контекст не установлен."
+    reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data=f"edit_context_{chat_id}")]])
+    await query.edit_message_text(
+        text=text,
+        reply_markup=reply_markup
+    )

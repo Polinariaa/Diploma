@@ -4,7 +4,7 @@ from database import get_chat, set_bot_active, get_user_admin_chats, get_admins_
     get_all_active_chats, add_spam_keyword, delete_spam_keyword, get_spam_keywords, get_admins_with_usernames_for_chat
 from manage_bot_admins import fetch_and_store_chat_members
 from answers import edit_faq, add_faq_question_handler, delete_faq_question_handler, view_faq_admin, view_faq_user, \
-    handle_faq_text, find_answer
+    handle_faq_text, find_answer, edit_context, edit_context_text, view_context
 from utils import is_bot_admin
 
 async def handle_button(update: Update, context: CallbackContext):
@@ -43,7 +43,8 @@ async def handle_button(update: Update, context: CallbackContext):
                      "Чтобы привязать бота к чату, нужно:\n"
                      "1. Добавить бота в чат\n"
                      "2. Назначить бот администратором\n\n"
-                     "Возможно, вы уже привязали бота к чату и можно переходить к его настройке. Если нет, то проследуйте инструкциям и вернитесь к привязке бота через основное меню.",
+                     "Возможно, вы уже привязали бота к чату и можно переходить к его настройке. "
+                     "Если нет, то проследуйте инструкциям и вернитесь к привязке бота через основное меню.",
                 reply_markup=reply_markup
             )
     elif query.data == 'configure_chat':
@@ -56,7 +57,8 @@ async def handle_button(update: Update, context: CallbackContext):
             keyboard.append([InlineKeyboardButton("<< Назад", callback_data="back_to_main_settings")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="Вот все каналы, в которых вы являетесь администратором. Нажмите на нужный, чтобы увидеть параметры настройки.",
+                text="Вот все каналы, в которых вы являетесь администратором. "
+                     "Нажмите на нужный, чтобы увидеть параметры настройки.",
                 reply_markup=reply_markup
             )
         else:
@@ -94,9 +96,12 @@ async def handle_button(update: Update, context: CallbackContext):
         chat = get_chat(chat_id)
         if chat:
             keyboard = [
-                [InlineKeyboardButton("Редактировать список администраторов бота", callback_data=f"edit_admins_{chat_id}")],
+                [InlineKeyboardButton("Редактировать список администраторов бота",
+                                      callback_data=f"edit_admins_{chat_id}")],
                 [InlineKeyboardButton("Редактировать спам-словарь", callback_data=f"edit_spam_{chat_id}")],
                 [InlineKeyboardButton("Редактировать часто задаваемые вопросы", callback_data=f"edit_faq_{chat_id}")],
+                [InlineKeyboardButton("Редактировать контекст для задавания вопроса",
+                                      callback_data=f"edit_context_{chat_id}")],
                 [InlineKeyboardButton("<< Назад", callback_data="configure_chat")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -160,11 +165,13 @@ async def handle_button(update: Update, context: CallbackContext):
         )
     elif query.data == 'find_answer':
         await find_answer(update, context)
-    elif query.data.startswith('answer_chat_'):
+    elif query.data.startswith('ask_question_'):
         chat_id = query.data.split('_')[-1]
         chat_name = [chat['name'] for chat in get_all_active_chats() if str(chat['chat_id']) == chat_id][0]
         context.user_data['search_chat_id'] = chat_id  # Сохраняем ID чата для последующего поиска
-        keyboard = [[InlineKeyboardButton("<< Назад", callback_data="find_answer")]]
+        context.user_data['action'] = 'ask_question'  # Сохраняем действие "Задать вопрос"
+        context.user_data['chat_id'] = chat_id
+        keyboard = [[InlineKeyboardButton("<< Назад", callback_data=f"select_answer_chat_{chat_id}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
             text=f"Ищем ответ на вопрос в чате {chat_name}. Введите пожалуйста свой вопрос.",
@@ -210,7 +217,8 @@ async def handle_button(update: Update, context: CallbackContext):
         context.user_data['spam_chat_id'] = chat_id  # сохраняем ID чата для действий со спам-словами
         await query.edit_message_text(
             text="Введите слова через запятую, которые вы хотите добавить:",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data=f"edit_spam_{chat_id}")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад",
+                                                                     callback_data=f"edit_spam_{chat_id}")]])
         )
     elif "delete_spam_" in query.data:
         chat_id = int(query.data.split('_')[2])
@@ -218,7 +226,8 @@ async def handle_button(update: Update, context: CallbackContext):
         context.user_data['spam_chat_id'] = chat_id
         await query.edit_message_text(
             text="Введите слова через запятую, которые вы хотите удалить:",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад", callback_data=f"edit_spam_{chat_id}")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("<< Назад",
+                                                                     callback_data=f"edit_spam_{chat_id}")]])
         )
     elif 'spam_action' in context.user_data:
         chat_id = context.user_data['spam_action']['chat_id']
@@ -249,6 +258,18 @@ async def handle_button(update: Update, context: CallbackContext):
                 [InlineKeyboardButton("<< Назад", callback_data=f"edit_spam_{chat_id}")]
             ])
         )
+    elif query.data.startswith('select_answer_chat_'):
+        chat_id = query.data.split('select_answer_chat_')[1]
+        keyboard = [
+            [InlineKeyboardButton("Посмотреть FAQ", callback_data=f"view_faq_user_{chat_id}")],
+            [InlineKeyboardButton("Задать вопрос", callback_data=f"ask_question_{chat_id}")],
+            [InlineKeyboardButton("<< Назад", callback_data="find_answer")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text="Что вы хотите сделать дальше?",
+            reply_markup=reply_markup
+        )
     elif "edit_faq_" in query.data:
         await edit_faq(update, context)
     elif "add_faq_question_" in query.data:
@@ -261,5 +282,11 @@ async def handle_button(update: Update, context: CallbackContext):
         await view_faq_admin(update, context)
     elif query.data.startswith('confirm_delete_faq_'):
         await handle_faq_text(update, context)
+    elif "edit_context_" in query.data:
+        await edit_context(update, context)
+    elif "edit_text_context_" in query.data:
+        await edit_context_text(update, context)
+    elif "view_context_" in query.data:
+        await view_context(update, context)
     else:
         await query.edit_message_text(text="Произошла ошибка. Попробуйте снова.")

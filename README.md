@@ -3,20 +3,18 @@
 Этот проект представляет собой бот на Python с различными функциями, такими как обработка подозрительных сообщений, управление администраторами бота и предоставление пользователям FAQ по запросу. Ниже приведено описание структуры проекта и руководства по использованию.
 
 ```Diploma/
-├── .git/
-├── .gitignore
-├── __pycache__/
-├── answers.py
-├── bot_database.db
+Diploma/
+├── .env
+├── main.py
 ├── bot_functions.py
 ├── bot_init.py
+├── answers.py
 ├── database.py
-├── main.py
 ├── manage_bot_admins.py
-├── README.md
 ├── suspicious_messages.py
 ├── utils.py
-├── venv/
+├── requirements.txt
+└── README.md
 ```
 
 - ```.git/```: Каталог Git, содержащий данные управления версиями.

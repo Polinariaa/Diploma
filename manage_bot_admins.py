@@ -1,8 +1,9 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
+from telegram import Bot
+
 from database import get_chat, add_chat_admin, get_user_admin_id_by_login, delete_chat_admin, is_user_admin_of_chat, \
     add_user_admin_to_chat_admins, is_user_admin_member_of_chat
-from telegram import Bot
 
 
 # Добавление админов бота

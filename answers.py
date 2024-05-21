@@ -1,8 +1,9 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from database import add_faq, delete_faq, get_all_faqs, get_all_active_chats, get_context
-from utils import is_user_member_of_chat
 import openai
+
+from utils import is_user_member_of_chat
 
 
 async def find_answer(update: Update, context: CallbackContext):
@@ -38,7 +39,7 @@ async def find_answer(update: Update, context: CallbackContext):
         elif update.callback_query:
             await update.callback_query.message.edit_text(
                 'Привет! Я ваш бот-помощник для чатов!\n\n'
-                'Вы выбрали режим поиска ответов по чату. Выберите чат для просмотра FAQ:',
+                'Вы выбрали режим поиска ответов по чату. Выберите чат для просмотра FAQ или чтобы задать вопрос:',
                 reply_markup=reply_markup
             )
     else:
